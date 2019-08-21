@@ -14,6 +14,7 @@ from lib.scene_parser.rcnn.structures.bounding_box_pair import BoxPairList
 from .baseline.baseline import build_baseline_model
 from .imp.imp import build_imp_model
 from .msdn.msdn import build_msdn_model
+from .linknet.linknet import build_linknet_model
 
 class ROIRelationHead(torch.nn.Module):
     """
@@ -30,6 +31,8 @@ class ROIRelationHead(torch.nn.Module):
             self.rel_predictor = build_imp_model(cfg, in_channels)
         elif cfg.MODEL.ALGORITHM == "sg_msdn":
             self.rel_predictor = build_msdn_model(cfg, in_channels)
+        elif cfg.MODEL.ALGORITHM == "sg_linknet":
+            self.rel_predictor = build_linknet_model(cfg, in_channels)
 
         self.post_processor = make_roi_relation_post_processor(cfg)
         self.loss_evaluator = make_roi_relation_loss_evaluator(cfg)

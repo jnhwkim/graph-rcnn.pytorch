@@ -23,8 +23,9 @@ class FastRCNNPredictor(nn.Module):
         # nn.init.normal_(self.bbox_pred.weight, mean=0, std=0.001)
         # nn.init.constant_(self.bbox_pred.bias, 0)
 
-    def forward(self, x):
-        x = self.avgpool(x)
+    def forward(self, x, averaged=False):
+        if not averaged:
+            x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         cls_logit = self.cls_score(x)
         return cls_logit

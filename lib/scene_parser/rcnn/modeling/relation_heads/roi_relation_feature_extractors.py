@@ -52,6 +52,11 @@ class ResNet50Conv5ROIFeatureExtractor(nn.Module):
         x = self.head(x_union)
         return x
 
+    def get_box_feature(self, x, proposals):
+        x = self.pooler(x, proposals)
+        x = self.head(x)
+        return x
+
 
 @registry.ROI_RELATION_FEATURE_EXTRACTORS.register("FPN2MLPFeatureExtractor")
 class FPN2MLPFeatureExtractor(nn.Module):

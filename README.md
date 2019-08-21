@@ -38,6 +38,7 @@ The goal of gathering all these representative methods into a single repo is to 
 - [x] Neural Motif (Frequency Prior Baseline) (:balloon: 2019-07-08)
 - [ ] Neural Motif
 - [ ] Graph R-CNN
+- [ ] LinkNet
 
 ## Benchmarking
 
