@@ -16,6 +16,7 @@ This project is a set of reimplemented representative scene graph generation mod
 * [Scene Graph Generation by Iterative Message Passing](https://arxiv.org/pdf/1701.02426.pdf), Xu et al. CVPR 2017
 * [Scene Graph Generation from Objects, Phrases and Region Captions](https://arxiv.org/pdf/1707.09700.pdf), Li et al. ICCV 2017
 * [Neural Motifs: Scene Graph Parsing with Global Context](https://arxiv.org/pdf/1711.06640.pdf), Zellers et al. CVPR 2018
+* [Graphical Contrastive Losses for Scene Graph Generation](https://arxiv.org/pdf/1903.02728.pdf), Zhang et al, CVPR 2019
 
 Our reimplementations are based on the following repositories:
 
@@ -24,6 +25,7 @@ Our reimplementations are based on the following repositories:
 * [scene-graph-TF-release](https://github.com/danfeiX/scene-graph-TF-release)
 * [MSDN](https://github.com/yikang-li/MSDN)
 * [neural-motifs](https://github.com/rowanz/neural-motifs)
+* [Graphical Contrastive Losses](https://github.com/NVIDIA/ContrastiveLosses4VRD/tree/pytorch1_0)
 
 ## Why we need this repository?
 
@@ -38,6 +40,7 @@ The goal of gathering all these representative methods into a single repo is to 
 - [x] Neural Motif (Frequency Prior Baseline) (:balloon: 2019-07-08)
 - [ ] Neural Motif
 - [ ] Graph R-CNN
+- [ ] RelDN (Contrastive Losses)
 - [ ] LinkNet
 
 ## Benchmarking
@@ -71,6 +74,14 @@ this repo | Res-101 | msdn | 8 | 5e-3 | 20k,30k | 40k | - | - | -
 this repo | Res-101 | grcnn | 8 | 5e-3 | 20k,30k | 40k | - | - | -
 
 \* you can click 'this repo' in above table to download the checkpoints.
+
+## Tips and Tricks
+
+Some important observations based on the experiments:
+
+* **Using per-category NMS is important!!!!**. We have found that the main reason for the huge gap between the imp-style models and motif-style models is that the later used the per-category nms before sending the graph into the scene graph generator. Will put the quantitative comparison here.
+
+* **Different calculations for frequency prior result in differnt results***. Even change a little bit to the calculation fo frequency prior, the performance of scene graph generation model vary much. In neural motiftnet, we found they turn on filter_non_overlap, filter_empty_rels to filter some triplets and images.
 
 ## Installation
 
@@ -203,14 +214,23 @@ where CHECKPOINT is the iteration number. By default it will evaluate the whole 
 
 :warning: If you want to evaluate the model at your own path, just need to change the MODEL.WEIGHT_DET to your own path in faster_rcnn_res101.yaml.
 
+### Evaluate scene graph frequency baseline model:
+
+In this case, you do not need any sgg model checkpoints. To get the evaluation result, object detector is enough. Run the following command:
+```
+python main.py --config-file configs/sgg_res101_{joint/step}.yaml --inference --use_freq_prior
+```
+
+In the yaml file, please specify the path MODEL.WEIGHT_DET for your object detector.
+
 ### Evaluate scene graph generation model:
 
-* Vanilla scene graph generation model with resnet-101 as backbone:
+* Scene graph generation model with resnet-101 as backbone:
 ```
 python main.py --config-file configs/sgg_res101_{joint/step}.yaml --inference --resume $CHECKPOINT --algorithm $ALGORITHM
 ```
 
-* Vanilla scene graph generation model with resnet-101 as backbone and use frequency prior:
+* Scene graph generation model with resnet-101 as backbone and use frequency prior:
 ```
 python main.py --config-file configs/sgg_res101_{joint/step}.yaml --inference --resume $CHECKPOINT --algorithm $ALGORITHM --use_freq_prior
 ```
