@@ -104,9 +104,12 @@ class ROIRelationHead(torch.nn.Module):
                 class_logits.append(class_logits_per_image)
             pred_class_logits = torch.cat(class_logits, 0)
         else:
-            # extract features that will be fed to the final classifier. The
-            # feature_extractor generally corresponds to the pooler + heads
-            x, obj_class_logits, pred_class_logits = self.rel_predictor(features, proposals, proposal_pairs)
+            if self.cfg.MODEL.ALGORITHM == "sg_linknet":
+                x, obj_class_logits, pred_class_logits, global_logits = self.rel_predictor(features, proposals, proposal_pairs)
+            else:
+                # extract features that will be fed to the final classifier. The
+                # feature_extractor generally corresponds to the pooler + heads
+                x, obj_class_logits, pred_class_logits = self.rel_predictor(features, proposals, proposal_pairs)
 
         if not self.training:
             result = self.post_processor((pred_class_logits), proposal_pairs, use_freq_prior=self.cfg.MODEL.USE_FREQ_PRIOR)
@@ -117,6 +120,11 @@ class ROIRelationHead(torch.nn.Module):
             #     proposal.add_field("labels", obj_label)
             return x, result, {}
 
+        if self.cfg.MODEL.ALGORITHM == "sg_linknet":
+            loss_global_classifier = self.loss_evaluator.global_classification_loss(proposals, [global_logits])
+        else:
+            loss_global_classifier = 0
+
         if self.cfg.MODEL.ALGORITHM != "sg_baseline":
             loss_obj_classifier = self.loss_evaluator.obj_classification_loss(proposals, [obj_class_logits])
         else:
@@ -126,7 +134,11 @@ class ROIRelationHead(torch.nn.Module):
         return (
             x,
             proposal_pairs,
-            dict(loss_obj_classifier=loss_obj_classifier, loss_pred_classifier=loss_pred_classifier),
+            dict(
+                loss_obj_classifier=loss_obj_classifier, 
+                loss_pred_classifier=loss_pred_classifier, 
+                loss_global_classifier=loss_global_classifier
+                ),
         )
 
 
