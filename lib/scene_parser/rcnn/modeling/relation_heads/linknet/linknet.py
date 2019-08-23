@@ -144,19 +144,19 @@ class LinkNet(nn.Module):
     @staticmethod
     def one_hot_sampling(logits):
         inds = torch.max(logits, -1)[1]  # argmax
-        one_hots = torch.zeros(*logits.size()).cuda()
+        one_hots = logits.new(*logits.size()).fill_(0)
         one_hots.scatter_(-1, inds.unsqueeze(-1), 1)
         return one_hots
 
     @staticmethod
     def pad_packed_tensor(x, proposals, padding_value=0):
-        lengths, max_len = LinkNet.get_lengths(proposals, tensorize=True)
+        lengths, max_len = LinkNet.get_lengths(proposals)
         padded = []
         for packed in x:
             out = []
             idx = 0
             for i in range(len(proposals)):
-                l = lengths[i].item()
+                l = lengths[i]
                 pad_dims = (max_len - l,) + packed.size()[1:]
                 pad = packed.new(*pad_dims).fill_(padding_value)
                 out.append(torch.cat([packed[idx:idx+l], pad], dim=0))
@@ -168,11 +168,11 @@ class LinkNet(nn.Module):
     def pack_padded_tensor(x, proposals):
         # x: tensor@bxBx...
         # out: tensor@[collapsed_boxes]x...
-        lengths, max_len = LinkNet.get_lengths(proposals, tensorize=True)
+        lengths, max_len = LinkNet.get_lengths(proposals)
         out = []
         idx = 0
-        for i in range(lengths.size(0)):
-            l = lengths[i].item()
+        for i in range(len(lengths)):
+            l = lengths[i]
             out.append(x[i,:l])
             idx += l
         return torch.cat(out, dim=0)
@@ -181,9 +181,9 @@ class LinkNet(nn.Module):
     def repeat_tensor(x, proposals):
         #   x: tensor@bx1024
         # out: tensor@[collapsed_boxes]x1024
-        lengths, max_len = LinkNet.get_lengths(proposals, tensorize=True)
+        lengths, max_len = LinkNet.get_lengths(proposals)
         trailing_dims = x.size()[1:]
-        out_dims = (lengths.sum().item(),) + trailing_dims
+        out_dims = (sum(lengths),) + trailing_dims
         out = x.new(*out_dims).fill_(0)
         idx = 0
         for i, bbox in enumerate(proposals):
