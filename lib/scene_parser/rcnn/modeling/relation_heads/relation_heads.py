@@ -34,7 +34,7 @@ class ROIRelationHead(torch.nn.Module):
         elif cfg.MODEL.ALGORITHM == "sg_msdn":
             self.rel_predictor = build_msdn_model(cfg, in_channels)
         elif cfg.MODEL.ALGORITHM == "sg_grcnn":
-            self.rel_predictor = build_grcnn_model(cfg, in_channels)
+            self.rel_predictor = build_grcnn_model(cfg, in_channels)            
         elif cfg.MODEL.ALGORITHM == "sg_reldn":
             self.rel_predictor = build_reldn_model(cfg, in_channels)
         elif cfg.MODEL.ALGORITHM == "sg_linknet":   
