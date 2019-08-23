@@ -1,9 +1,10 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 from lib.scene_parser.rcnn.modeling import registry
+import torch
 from torch import nn
 
 
-@registry.ROI_RELATION_PREDICTOR.register("FastRCNNPredictor")
+@registry.ROI_RELATION_PREDICTOR.register("FastRCNNRelationPredictor")
 class FastRCNNPredictor(nn.Module):
     def __init__(self, config, in_channels):
         super(FastRCNNPredictor, self).__init__()
@@ -14,6 +15,7 @@ class FastRCNNPredictor(nn.Module):
         num_classes = config.MODEL.ROI_RELATION_HEAD.NUM_CLASSES
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.cls_score = nn.Linear(num_inputs, num_classes)
+        # self.cls_score.weight = torch.nn.init.xavier_normal(self.cls_score.weight, gain=1.0)
         nn.init.normal_(self.cls_score.weight, mean=0, std=0.01)
         nn.init.constant_(self.cls_score.bias, 0)
 
@@ -24,7 +26,7 @@ class FastRCNNPredictor(nn.Module):
         return cls_logit
 
 
-@registry.ROI_RELATION_PREDICTOR.register("FPNPredictor")
+@registry.ROI_RELATION_PREDICTOR.register("FPNRelationPredictor")
 class FPNPredictor(nn.Module):
     def __init__(self, cfg, in_channels):
         super(FPNPredictor, self).__init__()

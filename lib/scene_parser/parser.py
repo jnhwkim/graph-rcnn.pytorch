@@ -16,7 +16,7 @@ from .rcnn.modeling.relation_heads.relation_heads import build_roi_relation_head
 
 import apex
 
-SCENE_PAESER_DICT = ["sg_baseline", "sg_imp", "sg_msdn", "sg_linknet"] #, "msdn": MSDN}
+SCENE_PAESER_DICT = ["sg_baseline", "sg_imp", "sg_msdn", "sg_grcnn", "sg_reldn", "sg_linknet"]
 
 class SceneParser(GeneralizedRCNN):
     "Scene Parser"
@@ -39,7 +39,7 @@ class SceneParser(GeneralizedRCNN):
                 param.requires_grad = False
 
         if cfg.MODEL.ROI_BOX_HEAD.FREEZE_PARAMETER:
-            for param in self.roi_heads.box.parameters():
+            for param in self.roi_heads.parameters():
                 param.requires_grad = False
 
     def train(self):
