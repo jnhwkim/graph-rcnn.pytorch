@@ -14,6 +14,8 @@ from .rcnn.structures.image_list import to_image_list
 from .rcnn.utils.comm import synchronize, get_rank
 from .rcnn.modeling.relation_heads.relation_heads import build_roi_relation_head
 
+import apex
+
 SCENE_PAESER_DICT = ["sg_baseline", "sg_imp", "sg_msdn", "sg_linknet"] #, "msdn": MSDN}
 
 class SceneParser(GeneralizedRCNN):
@@ -149,11 +151,18 @@ def build_scene_parser_optimizer(cfg, model, local_rank=0, distributed=False):
     optimizer = make_optimizer(cfg, model)
     scheduler = make_lr_scheduler(cfg, optimizer)
     if distributed:
-        model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[local_rank], output_device=local_rank,
-            # this should be removed if we update BatchNorm stats
-            broadcast_buffers=False,
-        )
+        if 'sg_linknet'==cfg.MODEL.ALGORITHM:  # needs apex wrapper
+            model = apex.parallel.DistributedDataParallel(
+                model, delay_allreduce=True
+                )
+            model.needs_refresh = True
+            model.callback_queued = False
+        else:
+            model = torch.nn.parallel.DistributedDataParallel(
+                model, device_ids=[local_rank], output_device=local_rank,
+                # this should be removed if we update BatchNorm stats
+                broadcast_buffers=False,
+                )
     save_to_disk = get_rank() == 0
     checkpointer = SceneParserCheckpointer(cfg, model, optimizer, scheduler, save_dir, save_to_disk,
         logger=logging.getLogger("scene_graph_generation.checkpointer"))
