@@ -17,7 +17,6 @@ class LinkNet(nn.Module):
         self.cfg = cfg
         self.in_channels = in_channels
         self.feature_extractor = make_roi_relation_feature_extractor(cfg, in_channels)
-        self.box_feature_extractor = make_roi_relation_box_feature_extractor(cfg, in_channels)
         self.predictor = make_roi_relation_predictor(cfg, self.feature_extractor.out_channels)
         self.box_predictor = make_roi_relation_box_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
@@ -62,9 +61,7 @@ class LinkNet(nn.Module):
         # x: tensor@[collapsed_pairs]x2048x7x7
         # obj_class_logits: tensor@[collapsed_boxes]x151
         # rel_class_logits: tensor@[collapsed_pairs]x51
-        
-        box_features = self.box_feature_extractor(features, proposals)  # [collapsed_boxes]x2048x7x7
-        # box_features = torch.cat([proposal.get_field("features").detach() for proposal in proposals], 0)
+        box_features = torch.cat([proposal.get_field("features").detach() for proposal in proposals], 0)
 
         f_roi = self.avgpool(box_features).squeeze()  # [collapsed_boxes]x2048
         l = self.one_hot_sampling(self.box_predictor(f_roi, averaged=True))  # [collapsed_boxes]x51
