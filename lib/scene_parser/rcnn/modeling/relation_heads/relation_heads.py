@@ -140,7 +140,7 @@ class ROIRelationHead(torch.nn.Module):
         if self.cfg.MODEL.ALGORITHM in ["sg_baseline", "sg_reldn"]:
             loss_obj_classifier = 0
         else:
-            if self.rel_predictor.update_step > 0:
+            if self.cfg.MODEL.ALGORITHM == "sg_linknet" or self.rel_predictor.update_step > 0:
                 loss_obj_classifier = self.loss_evaluator.obj_classification_loss(proposals, [obj_class_logits])
             else:
                 loss_obj_classifier = 0
