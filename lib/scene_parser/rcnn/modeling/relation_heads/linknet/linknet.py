@@ -4,7 +4,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ..roi_relation_box_predictors import make_roi_relation_box_predictor
+from ...roi_heads.box_head.roi_box_predictors import make_roi_box_predictor
 from ..roi_relation_feature_extractors import make_roi_relation_feature_extractor
 from ..roi_relation_box_feature_extractors import make_roi_relation_box_feature_extractor
 from ..roi_relation_predictors import make_roi_relation_predictor
@@ -18,7 +18,7 @@ class LinkNet(nn.Module):
         self.in_channels = in_channels
         self.feature_extractor = make_roi_relation_feature_extractor(cfg, in_channels)
         self.predictor = make_roi_relation_predictor(cfg, self.feature_extractor.out_channels)
-        self.box_predictor = make_roi_relation_box_predictor(cfg, self.feature_extractor.out_channels)
+        self.box_predictor = make_roi_box_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
         L = cfg.MODEL.LINKNET
         self.K_0 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE)
@@ -64,7 +64,7 @@ class LinkNet(nn.Module):
         box_features = torch.cat([proposal.get_field("features") for proposal in proposals], 0)
 
         f_roi = self.avgpool(box_features).squeeze(-1).squeeze(-1)  # [collapsed_boxes]x2048
-        l = self.box_predictor(f_roi, averaged=True)  # [collapsed_boxes]x51
+        l, _ = self.box_predictor(box_features)  # [collapsed_boxes]x51
         K_0_l = self.K_0(l)  # [collapsed_boxes]x200
         c, global_logits = self.global_context_embedding(features)  # bx1024, bx151
     
