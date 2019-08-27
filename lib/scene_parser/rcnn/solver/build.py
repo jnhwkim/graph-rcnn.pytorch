@@ -16,7 +16,10 @@ def make_optimizer(cfg, model):
             weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-    optimizer = torch.optim.SGD(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    if "adam" == cfg.SOLVER.OPTIMIZER:
+        optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR, betas=cfg.SOLVER.BETAS)
+    else:
+        optimizer = torch.optim.SGD(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
     return optimizer
 
 

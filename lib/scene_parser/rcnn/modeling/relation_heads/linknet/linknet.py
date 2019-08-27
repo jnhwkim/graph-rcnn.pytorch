@@ -21,14 +21,14 @@ class LinkNet(nn.Module):
         self.box_predictor = make_roi_relation_box_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
         L = cfg.MODEL.LINKNET
-        self.K_0 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE, bias=False)
+        self.K_0 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE)
         self.K_1 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE, bias=False)
-        self.K_2 = nn.Linear(L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE, bias=False)
+        self.K_2 = nn.Linear(L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE)
         self.G_0 = nn.Linear(in_channels, C.ROI_BOX_HEAD.NUM_CLASSES)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
 
         # 3.3.1 Object-Relational Embedding
-        satt_input_size = in_channels + self.feature_extractor.out_channels + L.LABEL_EMBEDDING_SIZE
+        satt_input_size = self.feature_extractor.out_channels + L.LABEL_EMBEDDING_SIZE + in_channels
         satt_hid0_size = int(satt_input_size / L.SATT_HIDDEN_FACTOR)
         satt_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.obj_rel_emb = nn.ModuleList([
@@ -61,7 +61,7 @@ class LinkNet(nn.Module):
         # x: tensor@[collapsed_pairs]x2048x7x7
         # obj_class_logits: tensor@[collapsed_boxes]x151
         # rel_class_logits: tensor@[collapsed_pairs]x51
-        box_features = torch.cat([proposal.get_field("features").detach() for proposal in proposals], 0)
+        box_features = torch.cat([proposal.get_field("features") for proposal in proposals], 0)
 
         f_roi = self.avgpool(box_features).squeeze(-1).squeeze(-1)  # [collapsed_boxes]x2048
         l = self.box_predictor(f_roi, averaged=True)  # [collapsed_boxes]x51
@@ -85,7 +85,6 @@ class LinkNet(nn.Module):
         E_1_sbj = E_1[..., :self.feature_extractor.out_channels]
         E_1_obj = E_1[..., self.feature_extractor.out_channels:]
 
-        # features = [feature.detach() for feature in features]
         F = self.avgpool(self.feature_extractor(features, proposal_pairs)).squeeze(-1).squeeze(-1)  # [collapsed_pairs]x...
 
         G_0 = self.interaction_embedding(E_1_sbj, E_1_obj, F, proposal_pairs)  # [collapsed_pairs]x...
