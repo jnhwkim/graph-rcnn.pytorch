@@ -101,7 +101,7 @@ class LinkNet(nn.Module):
 
     def global_context_embedding(self, features):
         assert 1==len(features)
-        global_features = self.avgpool(features[0]).squeeze()
+        global_features = self.avgpool(features[0]).squeeze(-1).squeeze(-1)
         global_logits = self.G_0(global_features)
         return global_features, global_logits
 
