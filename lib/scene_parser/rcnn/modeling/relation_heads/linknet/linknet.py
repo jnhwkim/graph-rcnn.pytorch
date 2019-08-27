@@ -63,8 +63,8 @@ class LinkNet(nn.Module):
         # rel_class_logits: tensor@[collapsed_pairs]x51
         box_features = torch.cat([proposal.get_field("features").detach() for proposal in proposals], 0)
 
-        f_roi = self.avgpool(box_features).squeeze()  # [collapsed_boxes]x2048
-        l = self.one_hot_sampling(self.box_predictor(f_roi, averaged=True))  # [collapsed_boxes]x51
+        f_roi = self.avgpool(box_features).squeeze(-1).squeeze(-1)  # [collapsed_boxes]x2048
+        l = self.box_predictor(f_roi, averaged=True)  # [collapsed_boxes]x51
         K_0_l = self.K_0(l)  # [collapsed_boxes]x200
         c, global_logits = self.global_context_embedding(features)  # bx1024, bx151
     
@@ -72,8 +72,6 @@ class LinkNet(nn.Module):
         f_roi_padded, K_0_l_padded = padded[0], padded[1]
         b_mask = f_roi_padded.abs().sum(-1)==self.PADDING
 
-        if 1 == f_roi_padded.size(0):
-            c = c.unsqueeze(0)
         O_0 = torch.cat([f_roi_padded, K_0_l_padded, c.unsqueeze(1).repeat(1,f_roi_padded.size(1),1)], dim=-1)  # bxBx(2048+200+1024=3272)
         O_3 = self.fwd_sa(O_0, self.obj_rel_emb, b_mask)
         O_4 = self.obj_rel_classifier(O_3)
@@ -88,7 +86,7 @@ class LinkNet(nn.Module):
         E_1_obj = E_1[..., self.feature_extractor.out_channels:]
 
         # features = [feature.detach() for feature in features]
-        F = self.avgpool(self.feature_extractor(features, proposal_pairs)).squeeze()  # [collapsed_pairs]x...
+        F = self.avgpool(self.feature_extractor(features, proposal_pairs)).squeeze(-1).squeeze(-1)  # [collapsed_pairs]x...
 
         G_0 = self.interaction_embedding(E_1_sbj, E_1_obj, F, proposal_pairs)  # [collapsed_pairs]x...
         G_1 = torch.cat([G_0, self.K_2(self.geometric_layout_encoding(G_0, proposal_pairs))], dim=-1)
