@@ -21,10 +21,10 @@ class LinkNet(nn.Module):
         self.box_predictor = make_roi_box_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
         L = cfg.MODEL.LINKNET
-        self.K_0 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE)
+        self.K_0 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)
         self.K_1 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE, bias=False)
-        self.K_2 = nn.Linear(L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE)
-        self.G_0 = nn.Linear(in_channels, C.ROI_BOX_HEAD.NUM_CLASSES)
+        self.K_2 = FCNet([L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE], '', L.SATT_DROPOUT_RATE)
+        self.G_0 = FCNet([in_channels, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
 
         # 3.3.1 Object-Relational Embedding
@@ -33,10 +33,10 @@ class LinkNet(nn.Module):
         satt_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.obj_rel_emb = nn.ModuleList([
             SA(satt_input_size, satt_hid0_size, satt_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([satt_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE, last_act=False, wn=False),
+            FCNet([satt_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE),
             SA(L.OBJ_REL_EMBEDDING_SIZE, satt_hid1_size, satt_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
             ])
-        self.obj_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE, last_act=False, wn=False)
+        self.obj_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
 
         # 3.4.1 Edge-Relational Embedding
         edge_input_size = L.OBJ_REL_EMBEDDING_SIZE + L.LABEL_EMBEDDING_SIZE
@@ -44,11 +44,11 @@ class LinkNet(nn.Module):
         edge_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.edge_rel_emb = nn.ModuleList([
             SA(edge_input_size, edge_hid0_size, edge_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([edge_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE, last_act=False, wn=False),
+            FCNet([edge_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE),
             SA(L.OBJ_REL_EMBEDDING_SIZE, edge_hid1_size, edge_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
             ])
-        self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * self.feature_extractor.out_channels], '', L.SATT_DROPOUT_RATE, last_act=False, wn=False)
-        self.rel_classifier = FCNet([self.feature_extractor.out_channels + L.GEOMETRIC_LAYOUT_ENCODING_SIZE, C.ROI_RELATION_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE, last_act=False, wn=False)
+        self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * self.feature_extractor.out_channels], '', L.SATT_DROPOUT_RATE)
+        self.rel_classifier = FCNet([self.feature_extractor.out_channels + L.GEOMETRIC_LAYOUT_ENCODING_SIZE, C.ROI_RELATION_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
         self.PADDING = 0
 
     def forward(self, features, proposals, proposal_pairs):
@@ -207,17 +207,17 @@ class GA(nn.Module):
         self.o_dim = o_dim
         self.glimpse = glimpse
         self.d_dim = math.floor(h_dim / glimpse)
-        self.q_net = FCNet([x_dim, h_dim], '', dropout, last_act=False, wn=False)
+        self.q_net = FCNet([x_dim, h_dim], '', dropout)
         self.optimize = True
         if self.optimize:
-            self.kv_net = FCNet([y_dim, h_dim + o_dim], '', dropout, last_act=False, wn=False)
+            self.kv_net = FCNet([y_dim, h_dim + o_dim], '', dropout)
         else:
-            self.k_net = FCNet([y_dim, h_dim], '', dropout, last_act=False, wn=False)
-            self.v_net = FCNet([y_dim, o_dim], '', dropout, last_act=False, wn=False)
-        self.m_net = FCNet([o_dim, x_dim], '', dropout, last_act=False, wn=False)
+            self.k_net = FCNet([y_dim, h_dim], '', dropout)
+            self.v_net = FCNet([y_dim, o_dim], '', dropout)
+        self.m_net = FCNet([o_dim, x_dim], '', dropout)
         self.ffn = ffn
         if ffn:
-            self.p_net = FCNet([o_dim, 4 * o_dim, o_dim], act, dropout, last_act=False, wn=False)
+            self.p_net = FCNet([o_dim, 4 * o_dim, o_dim], act, dropout)
             self.p_lnz = nn.ModuleList([nn.LayerNorm(x_dim), nn.LayerNorm(o_dim)])
         else:
             self.p_lnz = nn.ModuleList([nn.LayerNorm(x_dim)])
@@ -253,7 +253,7 @@ class SA(nn.Module):
 class FCNet(nn.Module):
     """Simple class for non-linear fully connect network
     """
-    def __init__(self, dims, act='ReLU', dropout=0, last_act=True, wn=True):
+    def __init__(self, dims, act='ReLU', dropout=0, last_act=False, wn=False):
         super(FCNet, self).__init__()
 
         layers = []
