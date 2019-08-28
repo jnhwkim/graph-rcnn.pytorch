@@ -18,7 +18,6 @@ class LinkNet(nn.Module):
         self.in_channels = in_channels
         self.feature_extractor = make_roi_relation_feature_extractor(cfg, in_channels)
         self.predictor = make_roi_relation_predictor(cfg, self.feature_extractor.out_channels)
-        self.box_predictor = make_roi_box_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
         L = cfg.MODEL.LINKNET
         self.K_0 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)
@@ -115,27 +114,19 @@ class LinkNet(nn.Module):
         return torch.cat(out, dim=0)
 
     def geometric_layout_encoding(self, x, proposal_pairs, eps=1e-15):
-        out = x.new(x.size(0), 4).fill_(0)
-        idx = 0
         for i, pairs in enumerate(proposal_pairs):
-            idx_pairs = pairs.get_field('idx_pairs')
-            for j in range(pairs.bbox.size(0)):
-                bbox_sbj = pairs.bbox[j,:4]
-                bbox_obj = pairs.bbox[j,4:]
-                if 'xyxy'==pairs.mode:
-                    layout = [
-                        (bbox_obj[0] - bbox_sbj[0]) / (bbox_sbj[2] - bbox_sbj[0] + eps),
-                        (bbox_obj[1] - bbox_sbj[1]) / (bbox_sbj[3] - bbox_sbj[1] + eps),
-                        (bbox_obj[2] - bbox_obj[0]) / (bbox_sbj[2] - bbox_sbj[0] + eps) + eps,
-                        (bbox_obj[3] - bbox_obj[1]) / (bbox_sbj[3] - bbox_sbj[1] + eps) + eps,
-                        ]
-                    for k in range(2,4):
-                        layout[k] = math.log(layout[k])
-                    out[idx] = torch.Tensor(layout).to(x.dtype)
-                else:
-                    raise NotImplementedError()
-                idx += 1
-        return out
+            bbox_sbj = pairs.bbox[:,:4]
+            bbox_obj = pairs.bbox[:,4:]
+            if 'xyxy'==pairs.mode:
+                layout = torch.stack([
+                        (bbox_obj[:,0] - bbox_sbj[:,0]) / (bbox_sbj[:,2] - bbox_sbj[:,0] + eps),
+                        (bbox_obj[:,1] - bbox_sbj[:,1]) / (bbox_sbj[:,3] - bbox_sbj[:,1] + eps),
+                        ((bbox_obj[:,2] - bbox_obj[:,0]) / (bbox_sbj[:,2] - bbox_sbj[:,0] + eps) + eps).log(),
+                        ((bbox_obj[:,3] - bbox_obj[:,1]) / (bbox_sbj[:,3] - bbox_sbj[:,1] + eps) + eps).log(),
+                        ], dim=-1).to(x.dtype)
+            else:
+                raise NotImplementedError()
+        return layout
 
     @staticmethod
     def one_hot_sampling(logits):
