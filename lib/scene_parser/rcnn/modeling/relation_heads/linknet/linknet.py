@@ -62,10 +62,10 @@ class LinkNet(nn.Module):
         # obj_class_logits: tensor@[collapsed_boxes]x151
         # rel_class_logits: tensor@[collapsed_pairs]x51
         box_features = torch.cat([proposal.get_field("features") for proposal in proposals], 0)
+        box_logits = torch.cat([proposal.get_field("logits") for proposal in proposals], 0)
 
         f_roi = self.avgpool(box_features).squeeze(-1).squeeze(-1)  # [collapsed_boxes]x2048
-        l, _ = self.box_predictor(box_features)  # [collapsed_boxes]x51
-        K_0_l = self.K_0(l)  # [collapsed_boxes]x200
+        K_0_l = self.K_0(box_logits)  # [collapsed_boxes]x200
         c, global_logits = self.global_context_embedding(features)  # bx1024, bx151
     
         padded = self.pad_packed_tensor([f_roi, K_0_l], proposals, padding_value=self.PADDING)  # bxBx2048, bxBx200
