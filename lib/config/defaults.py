@@ -336,6 +336,20 @@ _C.MODEL.LINKNET.GEOMETRIC_LAYOUT_SIZE = 4
 _C.MODEL.LINKNET.GEOMETRIC_LAYOUT_ENCODING_SIZE = 128
 
 # ---------------------------------------------------------------------------- #
+# Specific TestNet options
+# ---------------------------------------------------------------------------- #
+_C.MODEL.TESTNET = CN()
+_C.MODEL.TESTNET.LABEL_EMBEDDING_SIZE = 200
+_C.MODEL.TESTNET.HIDDEN_SIZE = 512
+_C.MODEL.TESTNET.SATT_NUM_LAYERS = 2
+_C.MODEL.TESTNET.SATT_HIDDEN_FACTOR = 2
+_C.MODEL.TESTNET.SATT_DROPOUT_RATE = .1
+_C.MODEL.TESTNET.SATT_NUM_GLIMPSES = 8
+_C.MODEL.TESTNET.OBJ_REL_EMBEDDING_SIZE = 512
+_C.MODEL.TESTNET.GEOMETRIC_LAYOUT_SIZE = 4
+_C.MODEL.TESTNET.GEOMETRIC_LAYOUT_ENCODING_SIZE = 128
+
+# ---------------------------------------------------------------------------- #
 # Specific test options
 # ---------------------------------------------------------------------------- #
 _C.TEST = CN()

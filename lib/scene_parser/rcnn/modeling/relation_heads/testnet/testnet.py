@@ -1,5 +1,5 @@
-# LinkNet model (Woo et al., 2018)
-# Reimplemented by Jin-Hwa Kim (jnhwkim@sktbrain.com)
+# TestNet model (Kim et al., 2019)
+# Implemented by Jin-Hwa Kim (jnhwkim@sktbrain.com)
 import math
 import torch
 import torch.nn as nn
@@ -11,15 +11,15 @@ from ..roi_relation_predictors import make_roi_relation_predictor
 from torch.nn.utils.weight_norm import weight_norm
 
 
-class LinkNet(nn.Module):
+class TestNet(nn.Module):
     def __init__(self, cfg, in_channels):
-        super(LinkNet, self).__init__()
+        super(TestNet, self).__init__()
         self.cfg = cfg
         self.in_channels = in_channels
         self.feature_extractor = make_roi_relation_feature_extractor(cfg, in_channels)
         self.predictor = make_roi_relation_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
-        L = cfg.MODEL.LINKNET
+        L = cfg.MODEL.TESTNET
         self.K_0 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)
         self.K_1 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE, bias=False)
         self.K_2 = FCNet([L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE], '', L.SATT_DROPOUT_RATE)
@@ -28,26 +28,18 @@ class LinkNet(nn.Module):
 
         # 3.3.1 Object-Relational Embedding
         satt_input_size = self.feature_extractor.out_channels + L.LABEL_EMBEDDING_SIZE + in_channels
-        satt_hid0_size = int(satt_input_size / L.SATT_HIDDEN_FACTOR)
-        satt_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.obj_rel_emb = nn.ModuleList([
-            SA(satt_input_size, satt_hid0_size, satt_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([satt_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE),
-            SA(L.OBJ_REL_EMBEDDING_SIZE, satt_hid1_size, satt_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
-            ])
+            FCNet([satt_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)] +
+            [SA(L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, glimpse=L.SATT_NUM_GLIMPSES, dropout=L.SATT_DROPOUT_RATE) for i in L.SATT_NUM_LAYERS])
         self.obj_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
 
         # 3.4.1 Edge-Relational Embedding
         edge_input_size = L.OBJ_REL_EMBEDDING_SIZE + L.LABEL_EMBEDDING_SIZE
-        edge_hid0_size = int(edge_input_size / L.SATT_HIDDEN_FACTOR)
-        edge_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.edge_rel_emb = nn.ModuleList([
-            SA(edge_input_size, edge_hid0_size, edge_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([edge_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE),
-            SA(L.OBJ_REL_EMBEDDING_SIZE, edge_hid1_size, edge_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
-            ])
-        self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * self.feature_extractor.out_channels], '', L.SATT_DROPOUT_RATE)
-        self.rel_classifier = FCNet([self.feature_extractor.out_channels + L.GEOMETRIC_LAYOUT_ENCODING_SIZE, C.ROI_RELATION_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
+            FCNet([edge_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)] + 
+            [SA(L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, glimpse=L.SATT_NUM_GLIMPSES, dropout=L.SATT_DROPOUT_RATE) for i in L.SATT_NUM_LAYERS])
+        self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * L.OBJ_REL_EMBEDDING_SIZE], '', 0)
+        self.rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE + L.GEOMETRIC_LAYOUT_ENCODING_SIZE, C.ROI_RELATION_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
         self.PADDING = 0
 
     def forward(self, features, proposals, proposal_pairs):
@@ -76,7 +68,7 @@ class LinkNet(nn.Module):
         O_4 = self.obj_rel_classifier(O_3)
         obj_class_logits = self.pack_padded_tensor(O_4, proposals)
 
-        O_4a = self.one_hot_sampling(O_4)
+        O_4a = F.softmax(O_4, dim=-2)
         K_1_O_4a = self.K_1(O_4a)
         E_0 = torch.cat([K_1_O_4a, O_3], -1)  # bxBx(200+256=456)
         e_0 = self.fwd_sa(E_0, self.edge_rel_emb, b_mask)  # bxBx...
@@ -95,7 +87,9 @@ class LinkNet(nn.Module):
 
     @staticmethod
     def fwd_sa(x, net, mask):
-        return net[2](net[1](net[0](x, mask)), mask)
+        for l in range(len(net)):
+            x = net[l](x) if 0==l else net[l](x, mask)
+        return x
 
     def global_context_embedding(self, features):
         assert 1==len(features)
@@ -137,7 +131,7 @@ class LinkNet(nn.Module):
 
     @staticmethod
     def pad_packed_tensor(x, proposals, padding_value=0):
-        lengths, max_len = LinkNet.get_lengths(proposals)
+        lengths, max_len = TestNet.get_lengths(proposals)
         padded = []
         for packed in x:
             out = []
@@ -155,7 +149,7 @@ class LinkNet(nn.Module):
     def pack_padded_tensor(x, proposals):
         # x: tensor@bxBx...
         # out: tensor@[collapsed_boxes]x...
-        lengths, max_len = LinkNet.get_lengths(proposals)
+        lengths, max_len = TestNet.get_lengths(proposals)
         out = []
         idx = 0
         for i in range(len(lengths)):
@@ -168,7 +162,7 @@ class LinkNet(nn.Module):
     def repeat_tensor(x, proposals):
         #   x: tensor@bx1024
         # out: tensor@[collapsed_boxes]x1024
-        lengths, max_len = LinkNet.get_lengths(proposals)
+        lengths, max_len = TestNet.get_lengths(proposals)
         trailing_dims = x.size()[1:]
         out_dims = (sum(lengths),) + trailing_dims
         out = x.new(*out_dims).fill_(0)
@@ -274,5 +268,5 @@ class FCNet(nn.Module):
         return self.main(x)
 
 
-def build_linknet_model(cfg, in_channels):
-    return LinkNet(cfg, in_channels)
+def build_testnet_model(cfg, in_channels):
+    return TestNet(cfg, in_channels)

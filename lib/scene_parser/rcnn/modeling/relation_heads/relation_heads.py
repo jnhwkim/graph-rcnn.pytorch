@@ -15,6 +15,7 @@ from .msdn.msdn import build_msdn_model
 from .grcnn.grcnn import build_grcnn_model
 from .reldn.reldn import build_reldn_model
 from .linknet.linknet import build_linknet_model
+from .testnet.testnet import build_testnet_model
 
 class ROIRelationHead(torch.nn.Module):
     """
@@ -37,6 +38,8 @@ class ROIRelationHead(torch.nn.Module):
             self.rel_predictor = build_reldn_model(cfg, in_channels)
         elif cfg.MODEL.ALGORITHM == "sg_linknet":   
             self.rel_predictor = build_linknet_model(cfg, in_channels)
+        elif cfg.MODEL.ALGORITHM == "sg_testnet":   
+            self.rel_predictor = build_testnet_model(cfg, in_channels)
 
         self.post_processor = make_roi_relation_post_processor(cfg)
         self.loss_evaluator = make_roi_relation_loss_evaluator(cfg)
@@ -132,7 +135,7 @@ class ROIRelationHead(torch.nn.Module):
             #     proposal.add_field("labels", obj_label)
             return x, result, {}
 
-        if self.cfg.MODEL.ALGORITHM == "sg_linknet":
+        if self.cfg.MODEL.ALGORITHM in ["sg_linknet", "sg_testnet"]:
             loss_global_classifier = self.loss_evaluator.global_classification_loss(proposals, [global_logits])
         else:
             loss_global_classifier = 0

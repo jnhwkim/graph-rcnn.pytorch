@@ -151,7 +151,7 @@ def build_scene_parser_optimizer(cfg, model, local_rank=0, distributed=False):
     optimizer = make_optimizer(cfg, model)
     scheduler = make_lr_scheduler(cfg, optimizer)
     if distributed:
-        if 'sg_linknet'==cfg.MODEL.ALGORITHM:  # needs apex wrapper
+        if cfg.MODEL.ALGORITHM in ['sg_linknet', 'sg_testnet']:  # needs apex wrapper
             model = apex.parallel.DistributedDataParallel(
                 model, delay_allreduce=True
                 )
