@@ -66,7 +66,14 @@ class Checkpointer(object):
         self._load_model(checkpoint)
         if "optimizer" in checkpoint and self.optimizer and "sg" in f and not self.inference:
             self.logger.info("Loading optimizer from {}".format(f))
-            self.optimizer.load_state_dict(checkpoint.pop("optimizer"))
+            try:
+                chp_opt = checkpoint.pop("optimizer")
+                self.optimizer.load_state_dict(chp_opt)
+            except:
+                print(chp_opt.keys())
+                print(chp_opt['param_groups'])
+                raise
+
         if "scheduler" in checkpoint and self.scheduler and "sg" in f and not self.inference:
             self.logger.info("Loading scheduler from {}".format(f))
             self.scheduler.load_state_dict(checkpoint.pop("scheduler"))
