@@ -30,15 +30,16 @@ class TestNet(nn.Module):
         satt_input_size = self.feature_extractor.out_channels + L.LABEL_EMBEDDING_SIZE + in_channels
         self.obj_rel_emb = nn.ModuleList([
             FCNet([satt_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)] +
-            [SA(L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, glimpse=L.SATT_NUM_GLIMPSES, dropout=L.SATT_DROPOUT_RATE) for i in L.SATT_NUM_LAYERS])
+            [SA(L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, glimpse=L.SATT_NUM_GLIMPSES, dropout=L.SATT_DROPOUT_RATE) for i in range(L.SATT_NUM_LAYERS)])
         self.obj_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
 
         # 3.4.1 Edge-Relational Embedding
         edge_input_size = L.OBJ_REL_EMBEDDING_SIZE + L.LABEL_EMBEDDING_SIZE
         self.edge_rel_emb = nn.ModuleList([
             FCNet([edge_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)] + 
-            [SA(L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, glimpse=L.SATT_NUM_GLIMPSES, dropout=L.SATT_DROPOUT_RATE) for i in L.SATT_NUM_LAYERS])
+            [SA(L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE, glimpse=L.SATT_NUM_GLIMPSES, dropout=L.SATT_DROPOUT_RATE) for i in range(L.SATT_NUM_LAYERS)])
         self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * L.OBJ_REL_EMBEDDING_SIZE], '', 0)
+        self.union_emb = FCNet([self.feature_extractor.out_channels, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)
         self.rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE + L.GEOMETRIC_LAYOUT_ENCODING_SIZE, C.ROI_RELATION_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
         self.PADDING = 0
 
@@ -68,22 +69,23 @@ class TestNet(nn.Module):
         O_4 = self.obj_rel_classifier(O_3)
         obj_class_logits = self.pack_padded_tensor(O_4, proposals)
 
-        O_4a = F.softmax(O_4, dim=-2)
+        O_4a = F.softmax(O_4, dim=-1)
         K_1_O_4a = self.K_1(O_4a)
         E_0 = torch.cat([K_1_O_4a, O_3], -1)  # bxBx(200+256=456)
         e_0 = self.fwd_sa(E_0, self.edge_rel_emb, b_mask)  # bxBx...
         E_1 = self.edge_rel_classifier(e_0)
-        E_1_sbj = E_1[..., :self.feature_extractor.out_channels]
-        E_1_obj = E_1[..., self.feature_extractor.out_channels:]
+        E_1_sbj = E_1[..., :self.cfg.MODEL.TESTNET.OBJ_REL_EMBEDDING_SIZE]
+        E_1_obj = E_1[..., self.cfg.MODEL.TESTNET.OBJ_REL_EMBEDDING_SIZE:]
 
-        F = self.avgpool(self.feature_extractor(features, proposal_pairs)).squeeze(-1).squeeze(-1)  # [collapsed_pairs]x...
+        F_0 = self.avgpool(self.feature_extractor(features, proposal_pairs)).squeeze(-1).squeeze(-1)  # [collapsed_pairs]x...
+        F_1 = self.union_emb(F_0)
 
-        G_0 = self.interaction_embedding(E_1_sbj, E_1_obj, F, proposal_pairs)  # [collapsed_pairs]x...
+        G_0 = self.interaction_embedding(E_1_sbj, E_1_obj, F_1, proposal_pairs)  # [collapsed_pairs]x...
         G_1 = torch.cat([G_0, self.K_2(self.geometric_layout_encoding(G_0, proposal_pairs))], dim=-1)
         G_2 = self.rel_classifier(G_1)
         rel_class_logits = G_2
        
-        return (f_roi, F), obj_class_logits, rel_class_logits, global_logits
+        return (f_roi, F_1), obj_class_logits, rel_class_logits, global_logits
 
     @staticmethod
     def fwd_sa(x, net, mask):

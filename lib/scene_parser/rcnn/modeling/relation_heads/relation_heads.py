@@ -119,7 +119,7 @@ class ROIRelationHead(torch.nn.Module):
                 class_logits.append(class_logits_per_image)
             pred_class_logits = torch.cat(class_logits, 0)
         else:
-            if self.cfg.MODEL.ALGORITHM == "sg_linknet":
+            if self.cfg.MODEL.ALGORITHM in ["sg_linknet", "sg_testnet"]:
                 x, obj_class_logits, pred_class_logits, global_logits = self.rel_predictor(features, proposals, proposal_pairs)
             else:
                 # extract features that will be fed to the final classifier. The
@@ -143,7 +143,7 @@ class ROIRelationHead(torch.nn.Module):
         if self.cfg.MODEL.ALGORITHM in ["sg_baseline", "sg_reldn"]:
             loss_obj_classifier = 0
         else:
-            if self.cfg.MODEL.ALGORITHM == "sg_linknet" or self.rel_predictor.update_step > 0:
+            if self.cfg.MODEL.ALGORITHM in ["sg_linknet", "sg_testnet"] or self.rel_predictor.update_step > 0:
                 loss_obj_classifier = self.loss_evaluator.obj_classification_loss(proposals, [obj_class_logits])
             else:
                 loss_obj_classifier = 0

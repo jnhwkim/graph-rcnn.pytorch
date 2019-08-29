@@ -16,7 +16,7 @@ from .rcnn.modeling.relation_heads.relation_heads import build_roi_relation_head
 
 import apex
 
-SCENE_PAESER_DICT = ["sg_baseline", "sg_imp", "sg_msdn", "sg_grcnn", "sg_reldn", "sg_linknet"]
+SCENE_PAESER_DICT = ["sg_baseline", "sg_imp", "sg_msdn", "sg_grcnn", "sg_reldn", "sg_linknet", "sg_testnet"]
 
 class SceneParser(GeneralizedRCNN):
     "Scene Parser"
