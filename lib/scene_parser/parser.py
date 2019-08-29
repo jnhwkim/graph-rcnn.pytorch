@@ -93,7 +93,8 @@ class SceneParser(GeneralizedRCNN):
         if self.roi_heads:
             x, detections, roi_heads_loss = self.roi_heads(features, proposals, targets)
             result = detections
-            scene_parser_losses.update(roi_heads_loss)
+            if self.cfg.MODEL.ALGORITHM not in ['sg_linknet', 'sg_testnet']:
+                scene_parser_losses.update(roi_heads_loss)
 
             if self.rel_heads:
                 relation_features = features
@@ -121,7 +122,8 @@ class SceneParser(GeneralizedRCNN):
         if self.training:
             losses = {}
             losses.update(scene_parser_losses)
-            losses.update(proposal_losses)
+            if self.cfg.MODEL.ALGORITHM not in ['sg_linknet', 'sg_testnet']:
+                losses.update(proposal_losses)
             return losses
 
         return result
@@ -152,8 +154,9 @@ def build_scene_parser_optimizer(cfg, model, local_rank=0, distributed=False):
     scheduler = make_lr_scheduler(cfg, optimizer)
     if distributed:
         if cfg.MODEL.ALGORITHM in ['sg_linknet', 'sg_testnet']:  # needs apex wrapper
+            sync_bn_model = apex.parallel.convert_syncbn_model(model)
             model = apex.parallel.DistributedDataParallel(
-                model, delay_allreduce=True
+                sync_bn_model, delay_allreduce=True
                 )
             model.needs_refresh = True
             model.callback_queued = False

@@ -20,10 +20,10 @@ class LinkNet(nn.Module):
         self.predictor = make_roi_relation_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
         L = cfg.MODEL.LINKNET
-        self.K_0 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE)
+        self.K_0 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], '', 0)
         self.K_1 = nn.Linear(C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE, bias=False)
-        self.K_2 = FCNet([L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE], '', L.SATT_DROPOUT_RATE)
-        self.G_0 = FCNet([in_channels, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
+        self.K_2 = FCNet([L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE], '', 0)
+        self.G_0 = FCNet([in_channels, C.ROI_BOX_HEAD.NUM_CLASSES], '', 0)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
 
         # 3.3.1 Object-Relational Embedding
@@ -31,23 +31,27 @@ class LinkNet(nn.Module):
         satt_hid0_size = int(satt_input_size / L.SATT_HIDDEN_FACTOR)
         satt_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.obj_rel_emb = nn.ModuleList([
-            SA(satt_input_size, satt_hid0_size, satt_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
+            SA(satt_input_size, satt_hid0_size, satt_hid0_size, glimpse=1, dropout=0, ffn=False),
             FCNet([satt_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE),
-            SA(L.OBJ_REL_EMBEDDING_SIZE, satt_hid1_size, satt_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
+            SA(L.OBJ_REL_EMBEDDING_SIZE, satt_hid1_size, satt_hid1_size, glimpse=1, dropout=0, ffn=False)
             ])
         self.obj_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
+        nn.init.normal_(self.obj_rel_classifier.main[0 if L.SATT_DROPOUT_RATE==0. else 1].weight, mean=0, std=0.01)
+        nn.init.constant_(self.obj_rel_classifier.main[0 if L.SATT_DROPOUT_RATE==0. else 1].bias, 0)
 
         # 3.4.1 Edge-Relational Embedding
         edge_input_size = L.OBJ_REL_EMBEDDING_SIZE + L.LABEL_EMBEDDING_SIZE
         edge_hid0_size = int(edge_input_size / L.SATT_HIDDEN_FACTOR)
         edge_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.edge_rel_emb = nn.ModuleList([
-            SA(edge_input_size, edge_hid0_size, edge_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
+            SA(edge_input_size, edge_hid0_size, edge_hid0_size, glimpse=1, dropout=0, ffn=False),
             FCNet([edge_input_size, L.OBJ_REL_EMBEDDING_SIZE], '', L.SATT_DROPOUT_RATE),
-            SA(L.OBJ_REL_EMBEDDING_SIZE, edge_hid1_size, edge_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
+            SA(L.OBJ_REL_EMBEDDING_SIZE, edge_hid1_size, edge_hid1_size, glimpse=1, dropout=0, ffn=False)
             ])
         self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * self.feature_extractor.out_channels], '', L.SATT_DROPOUT_RATE)
         self.rel_classifier = FCNet([self.feature_extractor.out_channels + L.GEOMETRIC_LAYOUT_ENCODING_SIZE, C.ROI_RELATION_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
+        nn.init.normal_(self.rel_classifier.main[0 if L.SATT_DROPOUT_RATE==0. else 1].weight, mean=0, std=0.01)
+        nn.init.constant_(self.rel_classifier.main[0 if L.SATT_DROPOUT_RATE==0. else 1].bias, 0)
         self.PADDING = 0
 
     def forward(self, features, proposals, proposal_pairs):
@@ -209,9 +213,9 @@ class GA(nn.Module):
         self.ffn = ffn
         if ffn:
             self.p_net = FCNet([x_dim, 4 * x_dim, x_dim], act, dropout)
-            self.p_lnz = nn.ModuleList([nn.LayerNorm(x_dim), nn.LayerNorm(x_dim)])
+            self.p_lnz = nn.ModuleList([nn.BatchNorm1d(x_dim), nn.BatchNorm1d(x_dim)])
         else:
-            self.p_lnz = nn.ModuleList([nn.LayerNorm(x_dim)])
+            self.p_lnz = nn.ModuleList([nn.BatchNorm1d(x_dim)])
 
     def forward(self, x, y, x_msk, y_msk):
         q_emb = self.q_net(x).view(x.size(0), x.size(1), self.glimpse, -1)
@@ -226,9 +230,9 @@ class GA(nn.Module):
         p = F.softmax(logit, 2)
         o0 = torch.einsum('bkgh,bqkg->bqgh', v_emb, p).view(x.size(0), x.size(1), -1)
         o1 = self.m_net(o0)
-        o2 = self.p_lnz[0](o1 + x)
+        o2 = self.p_lnz[0]((o1 + x).transpose(1,2)).transpose(1,2)
         if self.ffn:
-            o2 = self.p_lnz[1](self.p_net(o2) + o2)
+            o2 = self.p_lnz[1]((self.p_net(o2) + o2).transpose(1,2)).transpose(1,2)
         return o2
 
 
