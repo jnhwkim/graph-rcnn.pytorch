@@ -32,7 +32,7 @@ class LinkNet(nn.Module):
         satt_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.obj_rel_emb = nn.ModuleList([
             SA(satt_input_size, satt_hid0_size, satt_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([satt_input_size, 4 * L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE),
+            FCNet([satt_input_size, 4 * L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE, last_act=False),
             SA(L.OBJ_REL_EMBEDDING_SIZE, satt_hid1_size, satt_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
             ])
         self.obj_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
@@ -43,7 +43,7 @@ class LinkNet(nn.Module):
         edge_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.edge_rel_emb = nn.ModuleList([
             SA(edge_input_size, edge_hid0_size, edge_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([edge_input_size, 4 * L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE),
+            FCNet([edge_input_size, 4 * L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE, last_act=False),
             SA(L.OBJ_REL_EMBEDDING_SIZE, edge_hid1_size, edge_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
             ])
         self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * self.feature_extractor.out_channels], '', L.SATT_DROPOUT_RATE)
@@ -226,7 +226,7 @@ class GA(nn.Module):
         p = F.softmax(logit, 2)
         o0 = torch.einsum('bkgh,bqkg->bqgh', v_emb, p).view(x.size(0), x.size(1), -1)
         o1 = self.m_net(o0)
-        o2 = self.p_lnz[0]((o1 + x))
+        o2 = self.p_lnz[0](o1 + x)
         if self.ffn:
             o2 = self.p_lnz[1](self.p_net(o2) + o2)
         return o2
