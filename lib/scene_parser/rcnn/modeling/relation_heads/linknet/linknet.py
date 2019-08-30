@@ -20,10 +20,10 @@ class LinkNet(nn.Module):
         self.predictor = make_roi_relation_predictor(cfg, self.feature_extractor.out_channels)
         C = cfg.MODEL
         L = cfg.MODEL.LINKNET
-        self.K_0 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], 'ReLU', 0, last_act=True)
-        self.K_1 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], 'ReLU', 0, last_act=True)
+        self.K_0 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], '', 0)
+        self.K_1 = FCNet([C.ROI_BOX_HEAD.NUM_CLASSES, L.LABEL_EMBEDDING_SIZE], '', 0)
         self.K_2 = FCNet([L.GEOMETRIC_LAYOUT_SIZE, L.GEOMETRIC_LAYOUT_ENCODING_SIZE], '', 0)
-        self.G_0 = FCNet([in_channels, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE, last_act=True)
+        self.G_0 = FCNet([in_channels, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
 
         # 3.3.1 Object-Relational Embedding
@@ -32,7 +32,7 @@ class LinkNet(nn.Module):
         satt_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.obj_rel_emb = nn.ModuleList([
             SA(satt_input_size, satt_hid0_size, satt_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([satt_input_size, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE, last_act=True),
+            FCNet([satt_input_size, 4 * L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE),
             SA(L.OBJ_REL_EMBEDDING_SIZE, satt_hid1_size, satt_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
             ])
         self.obj_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, C.ROI_BOX_HEAD.NUM_CLASSES], '', L.SATT_DROPOUT_RATE)
@@ -43,7 +43,7 @@ class LinkNet(nn.Module):
         edge_hid1_size = int(L.OBJ_REL_EMBEDDING_SIZE / L.SATT_HIDDEN_FACTOR)
         self.edge_rel_emb = nn.ModuleList([
             SA(edge_input_size, edge_hid0_size, edge_hid0_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False),
-            FCNet([edge_input_size, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE, last_act=True),
+            FCNet([edge_input_size, 4 * L.OBJ_REL_EMBEDDING_SIZE, L.OBJ_REL_EMBEDDING_SIZE], 'ReLU', L.SATT_DROPOUT_RATE),
             SA(L.OBJ_REL_EMBEDDING_SIZE, edge_hid1_size, edge_hid1_size, glimpse=1, dropout=L.SATT_DROPOUT_RATE, ffn=False)
             ])
         self.edge_rel_classifier = FCNet([L.OBJ_REL_EMBEDDING_SIZE, 2 * self.feature_extractor.out_channels], '', L.SATT_DROPOUT_RATE)
